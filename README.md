@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Nextflow Workflow Builder
 
-## Getting Started
+React Flow + Next.js workflow builder with AI nodes.
 
-First, run the development server:
+## Features
+- Visual workflow canvas
+- Text, Image/Video upload, LLM, Crop Image, Extract Frame nodes
+- Trigger.dev + FFmpeg for heavy processing
+- OpenAI GPT-4o vision for multimodal LLM
 
+## Quick Start
 ```bash
+cd nextflow
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Setup Production Features
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Transloadit (Image/Video Uploads)
+1. [Sign up at transloadit.com](https://transloadit.com)
+2. Create account → Dashboard → **Account** → **API Credentials**
+3. Copy `Auth Key` → `TRANSLOADIT_KEY=your_key`
+4. Copy `Secret` → `TRANSLOADIT_SECRET=your_secret`
+5. Add to `.env.local`:
+   ```
+   TRANSLOADIT_KEY=your_key_here
+   TRANSLOADIT_SECRET=your_secret_here
+   ```
+6. `npm i transloadit`
+7. Replace TODO comments in `/api/upload/image/route.ts` and `/api/upload/video/route.ts`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### OpenAI LLM
+```
+OPENAI_API_KEY=sk-... 
+```
 
-## Learn More
+### HuggingFace (optional image gen)
+```
+HF_TOKEN=hf_...
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Node Implementation Status
+See [TODO.md](TODO.md)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Run Tests
+```
+npm run dev
+# Open http://localhost:3000/builder
+# Drag nodes, connect, run!
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

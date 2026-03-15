@@ -1,0 +1,96 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  clerkId       String         @unique
+  email         String         @unique
+  name          String?
+  imageUrl      String?
+  workflows     Workflow[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Workflow {
+  id            String         @id @default(cuid())
+  userId       String
+  name          String
+  description   String?
+  nodes         Json           @default("[]")
+  edges         Json           @default("[]")
+  viewport      Json           @default("{}")
+  runs          WorkflowRun[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+}
+
+model WorkflowRun {
+  id            String         @id @default(cuid())
+  workflowId    String
+  status        RunStatus      @default(PENDING)
+  scope         RunScope       @default(FULL)
+  duration      Int?
+  nodeRuns      NodeRun[]
+  createdAt     DateTime       @default(now())
+  
+  workflow      Workflow       @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  
+  @@index([workflowId])
+  @@index([createdAt])
+}
+
+
+ model NodeRun {
+  id            String      @id @default(cuid())
+  runId         String
+  nodeId        String
+  nodeType      String
+
+  status        RunStatus   @default(PENDING)
+
+  inputs        Json?
+  outputs       Json?
+  error         String?
+
+  triggerJobId  String?
+  assemblyId    String?
+
+  executionTime Int?
+  retryCount    Int         @default(0)
+
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime    @default(now())
+
+  workflowRun   WorkflowRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([nodeId])
+}
+
+enum RunStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum RunScope {
+  FULL
+  SINGLE_NODE
+  SELECTED_NODES
+}

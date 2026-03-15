@@ -2,11 +2,9 @@
 
 A **visual no-code platform** for building **AI & multimodal pipelines** using drag-and-drop nodes.
 
-Built with **Next.js, React Flow, Prisma, Trigger.dev**, and integrates **OpenAI GPT-4o Vision, HuggingFace, and FFmpeg** for AI-powered workflows.
+Built with **Next.js, React Flow, Prisma, Trigger.dev**, and integrates **Google Gemini (Generative AI)** along with **FFmpeg for media processing**.
 
-Users can design workflows visually, connect nodes, and execute **AI pipelines involving text, images, and video processing**.
-
----
+Users can visually design workflows, connect nodes, and execute **AI pipelines involving text, images, and video processing**.
 
 # 🌐 Live Demo
 

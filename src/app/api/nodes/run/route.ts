@@ -1,11 +1,12 @@
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { runs } from "@trigger.dev/sdk/v3";
 import { runLLM, cropImage, extractFrame, trimVideo } from "@/lib/tasks";
 
-/* ── Poll a Trigger.dev run until it completes (max 90s) ── */
+/* ── Poll a Trigger.dev run until it completes ── */
 async function pollRun<T>(runId: string, timeoutMs = 90_000): Promise<T> {
   const interval = 2_000;
   const deadline = Date.now() + timeoutMs;
@@ -29,7 +30,7 @@ async function pollRun<T>(runId: string, timeoutMs = 90_000): Promise<T> {
     await new Promise(r => setTimeout(r, interval));
   }
 
-  throw new Error("Task polling timed out after 90s");
+  throw new Error(`Task polling timed out after ${timeoutMs / 1000}s`);
 }
 
 export async function POST(request: NextRequest) {
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest) {
       }
       try {
         const run    = await runLLM.trigger({ systemPrompt: systemPrompt || undefined, userMessage, images: images || [] });
-        const result = await pollRun<{ success: boolean; output?: { text: string }; error?: string }>(run.id);
+        const result = await pollRun<{ success: boolean; output?: { text: string }; error?: string }>(run.id, 120_000);
         if (!result.success) {
           return NextResponse.json({ success: false, error: result.error || "LLM failed" }, { status: 500 });
         }
@@ -75,56 +76,56 @@ export async function POST(request: NextRequest) {
     }
 
     /* IMAGE GEN NODE */
-if (nodeType === "imageGenNode") {
-  const prompt = (
-    (inputs.prompt as string) || (inputs.userMessage as string) || (inputs.text as string) || ""
-  ).trim();
+    if (nodeType === "imageGenNode") {
+      const prompt = (
+        (inputs.prompt as string) || (inputs.userMessage as string) || (inputs.text as string) || ""
+      ).trim();
 
-  if (!prompt) {
-    return NextResponse.json({ success: false, error: "Prompt missing" }, { status: 400 });
-  }
-
-  try {
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
-    if (!apiKey) throw new Error("GOOGLE_AI_API_KEY not configured");
-
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
-        }),
+      if (!prompt) {
+        return NextResponse.json({ success: false, error: "Prompt missing" }, { status: 400 });
       }
-    );
 
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Imagen API error ${res.status}: ${err}`);
+      try {
+        const apiKey = process.env.GOOGLE_AI_API_KEY;
+        if (!apiKey) throw new Error("GOOGLE_AI_API_KEY not configured");
+
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
+            }),
+          }
+        );
+
+        if (!res.ok) {
+          const err = await res.text();
+          throw new Error(`Imagen API error ${res.status}: ${err}`);
+        }
+
+        const data = await res.json();
+        const parts = data?.candidates?.[0]?.content?.parts || [];
+        const imagePart = parts.find((p: any) => p.inlineData);
+
+        if (!imagePart?.inlineData?.data) {
+          throw new Error("No image returned from Gemini API");
+        }
+
+        const mimeType          = imagePart.inlineData.mimeType || "image/png";
+        const generatedImageUrl = `data:${mimeType};base64,${imagePart.inlineData.data}`;
+
+        return NextResponse.json({ success: true, output: { generatedImageUrl } });
+
+      } catch (error) {
+        return NextResponse.json({
+          success: false,
+          error: error instanceof Error ? error.message : "Image generation failed",
+        }, { status: 500 });
+      }
     }
-
-    const data = await res.json();
-    const parts = data?.candidates?.[0]?.content?.parts || [];
-    const imagePart = parts.find((p: any) => p.inlineData);
-
-    if (!imagePart?.inlineData?.data) {
-      throw new Error("No image returned from Gemini API");
-    }
-
-    const mimeType = imagePart.inlineData.mimeType || "image/png";
-    const generatedImageUrl = `data:${mimeType};base64,${imagePart.inlineData.data}`;
-
-    return NextResponse.json({ success: true, output: { generatedImageUrl } });
-
-  } catch (error) {
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : "Image generation failed",
-    }, { status: 500 });
-  }
-}
 
     /* UPLOAD IMAGE NODE */
     if (nodeType === "uploadImageNode") {
@@ -132,7 +133,6 @@ if (nodeType === "imageGenNode") {
       if (!imageUrl) return NextResponse.json({ success: false, error: "No imageUrl provided" }, { status: 400 });
       return NextResponse.json({ success: true, output: { imageUrl } });
     }
-
 
     /* UPLOAD VIDEO NODE */
     if (nodeType === "uploadVideoNode") {
@@ -151,7 +151,7 @@ if (nodeType === "imageGenNode") {
       if (!imageUrl) return NextResponse.json({ success: false, error: "No image provided for crop" }, { status: 400 });
       try {
         const run    = await cropImage.trigger({ imageUrl, xPercent, yPercent, widthPercent, heightPercent });
-        const result = await pollRun<{ success: boolean; output?: { croppedImageUrl: string }; error?: string }>(run.id);
+        const result = await pollRun<{ success: boolean; output?: { croppedImageUrl: string }; error?: string }>(run.id, 120_000);
         if (!result.success) return NextResponse.json({ success: false, error: result.error || "Crop failed" }, { status: 500 });
         return NextResponse.json({ success: true, output: result.output });
       } catch (error) {
@@ -166,7 +166,7 @@ if (nodeType === "imageGenNode") {
       if (!videoUrl) return NextResponse.json({ success: false, error: "No video provided" }, { status: 400 });
       try {
         const run    = await extractFrame.trigger({ videoUrl, timestamp });
-        const result = await pollRun<{ success: boolean; output?: { frameImageUrl: string }; error?: string }>(run.id);
+        const result = await pollRun<{ success: boolean; output?: { frameImageUrl: string }; error?: string }>(run.id, 300_000);
         if (!result.success) return NextResponse.json({ success: false, error: result.error || "Frame extraction failed" }, { status: 500 });
         return NextResponse.json({ success: true, output: result.output });
       } catch (error) {
@@ -182,7 +182,7 @@ if (nodeType === "imageGenNode") {
       if (!videoUrl) return NextResponse.json({ success: false, error: "No video provided" }, { status: 400 });
       try {
         const run    = await trimVideo.trigger({ videoUrl, startTime, endTime });
-        const result = await pollRun<{ success: boolean; output?: { trimmedVideoUrl: string }; error?: string }>(run.id);
+        const result = await pollRun<{ success: boolean; output?: { trimmedVideoUrl: string }; error?: string }>(run.id, 600_000);
         if (!result.success) return NextResponse.json({ success: false, error: result.error || "Video trim failed" }, { status: 500 });
         return NextResponse.json({ success: true, output: result.output });
       } catch (error) {

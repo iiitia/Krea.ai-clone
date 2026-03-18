@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useEffect } from 'react';
+import { memo, useEffect, useMemo } from 'react';
 import { NodeProps, useNodes, useEdges } from '@xyflow/react';
 import { ImageIcon } from 'lucide-react';
 import { ImageGenNodeData } from '@/types';
@@ -8,51 +8,33 @@ import { NodeWrapper } from './NodeWrapper';
 import { useWorkflowStore } from '@/lib/store/workflowStore';
 
 function ImageGenNodeComponent({ id, data, selected }: NodeProps<ImageGenNodeData>) {
-
   const updateNodeData = useWorkflowStore((state) => state.updateNodeData);
   const nodes = useNodes();
   const edges = useEdges();
 
-  /* ---------- Auto-read prompt from connected nodes ---------- */
+  // ✅ stable primitive string dep
+  const upstreamPrompt = useMemo(() => {
+    const edge = edges.find((e) => e.target === id);
+    if (!edge) return null;
+    const sourceNode = nodes.find((n) => n.id === edge.source);
+    if (!sourceNode) return null;
+    const d = sourceNode.data as any;
+    if (d.type === 'textNode') return d.text ?? null;
+    if (d.type === 'llmNode')  return d.text ?? d.response ?? null;
+    return null;
+  }, [edges, nodes, id]);
 
   useEffect(() => {
-
-    const connectedEdges = edges.filter((edge) => edge.target === id);
-
-    connectedEdges.forEach((edge) => {
-
-      const sourceNode = nodes.find((n) => n.id === edge.source);
-      if (!sourceNode) return;
-
-      // Prompt from Text node
-      if (sourceNode.data.type === 'textNode') {
-        updateNodeData(id, {
-          prompt: (sourceNode.data as any).text
-        });
-      }
-
-      // Prompt from LLM node
-      if (sourceNode.data.type === 'llmNode') {
-        updateNodeData(id, {
-          prompt: (sourceNode.data as any).response
-        });
-      }
-
-    });
-
-  }, [edges, nodes, id, updateNodeData]);
-
-  /* ---------- Run Image Generation ---------- */
+    if (typeof upstreamPrompt === 'string' && upstreamPrompt !== data.prompt) {
+      updateNodeData(id, { prompt: upstreamPrompt });
+    }
+  }, [upstreamPrompt, id, updateNodeData]);
 
   const runNode = async () => {
-
     const prompt = data.prompt || '';
 
     if (!prompt.trim()) {
-      updateNodeData(id, {
-        status: 'failed',
-        error: 'No prompt provided',
-      });
+      updateNodeData(id, { status: 'failed', error: 'No prompt provided' });
       return;
     }
 
@@ -63,52 +45,39 @@ function ImageGenNodeComponent({ id, data, selected }: NodeProps<ImageGenNodeDat
     });
 
     try {
-
       const response = await fetch('/api/nodes/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nodeId: id,
           nodeType: 'imageGenNode',
-          inputs: {
-            prompt: prompt,
-          },
+          inputs: { prompt },
         }),
       });
 
       const result = await response.json();
 
       if (result.success) {
-
         updateNodeData(id, {
           generatedImageUrl: result.output.generatedImageUrl,
           isGenerating: false,
           status: 'success',
         });
-
       } else {
-
         updateNodeData(id, {
           isGenerating: false,
           status: 'failed',
           error: result.error || 'Image generation failed',
         });
-
       }
 
     } catch (error) {
-
       updateNodeData(id, {
         isGenerating: false,
         status: 'failed',
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Image generation failed',
+        error: error instanceof Error ? error.message : 'Image generation failed',
       });
-
     }
-
   };
 
   return (
@@ -125,17 +94,13 @@ function ImageGenNodeComponent({ id, data, selected }: NodeProps<ImageGenNodeDat
     >
       <div className="space-y-2">
 
-        {/* Prompt input */}
         <textarea
           placeholder="Describe the image"
           value={data.prompt || ''}
-          onChange={(e) =>
-            updateNodeData(id, { prompt: e.target.value })
-          }
+          onChange={(e) => updateNodeData(id, { prompt: e.target.value })}
           className="w-full p-2 bg-gray-800 border border-gray-700 rounded text-xs resize-vertical min-h-[60px] text-white"
         />
 
-        {/* Generated Image */}
         {data.generatedImageUrl && (
           <img
             src={data.generatedImageUrl}
@@ -144,7 +109,6 @@ function ImageGenNodeComponent({ id, data, selected }: NodeProps<ImageGenNodeDat
           />
         )}
 
-        {/* Generate Button */}
         <button
           onClick={runNode}
           disabled={data.isGenerating}

@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useEffect } from 'react';
+import { memo, useEffect, useMemo } from 'react';
 import { NodeProps, useEdges, useNodes } from '@xyflow/react';
 import { Crop } from 'lucide-react';
 import { CropImageNodeData } from '@/types';
@@ -39,25 +39,28 @@ function CropImageNodeComponent({ id, data, selected }: CropImageNodeProps) {
   const nodes = useNodes();
   const edges = useEdges();
 
-  // Sync imageUrl from connected image_url handle
-  useEffect(() => {
+  // ✅ useMemo — stable primitive string dep
+  const upstreamImageUrl = useMemo(() => {
     const edge = edges.find((e) => e.target === id && e.targetHandle === 'image_url');
-    if (!edge) return;
-
+    if (!edge) return null;
     const sourceNode = nodes.find((n) => n.id === edge.source);
-    if (!sourceNode) return;
+    if (!sourceNode) return null;
+    const d = sourceNode.data as Record<string, unknown>;
+    return (
+      (d.imageUrl as string) ??
+      (d.croppedImageUrl as string) ??
+      (d.generatedImageUrl as string) ??
+      (d.frameImageUrl as string) ??
+      null
+    );
+  }, [edges, nodes, id]);
 
-    const url =
-      (sourceNode.data as Record<string, unknown>).imageUrl ??
-      (sourceNode.data as Record<string, unknown>).croppedImageUrl ??
-      (sourceNode.data as Record<string, unknown>).generatedImageUrl ??
-      (sourceNode.data as Record<string, unknown>).frameImageUrl ??
-      null;
-
-    if (typeof url === 'string' && url !== data.imageUrl) {
-      updateNodeData(id, { imageUrl: url });
+  // ✅ fires whenever upstream URL changes
+  useEffect(() => {
+    if (typeof upstreamImageUrl === 'string' && upstreamImageUrl !== data.imageUrl) {
+      updateNodeData(id, { imageUrl: upstreamImageUrl });
     }
-  }, [edges, nodes, id, data.imageUrl, updateNodeData]);
+  }, [upstreamImageUrl, id, updateNodeData]);
 
   const { value: x, connected: xConn } = resolveHandleValue(id, 'x_percent',      data.xPercent      ?? 0,   nodes, edges);
   const { value: y, connected: yConn } = resolveHandleValue(id, 'y_percent',      data.yPercent      ?? 0,   nodes, edges);
@@ -117,8 +120,6 @@ function CropImageNodeComponent({ id, data, selected }: CropImageNodeProps) {
         error?: string;
       };
 
-      console.log('CROP RESULT:', result);
-
       if (!result.success || !result.output?.croppedImageUrl) {
         throw new Error(result.error ?? 'Crop failed — no output URL returned');
       }
@@ -159,7 +160,6 @@ function CropImageNodeComponent({ id, data, selected }: CropImageNodeProps) {
     >
       <div className="space-y-2">
 
-        {/* Source preview with crop overlay */}
         {data.imageUrl ? (
           <div className="relative rounded overflow-hidden" style={{ height: 80 }}>
             <img
@@ -187,7 +187,6 @@ function CropImageNodeComponent({ id, data, selected }: CropImageNodeProps) {
           </div>
         )}
 
-        {/* Crop controls */}
         <div className="grid grid-cols-2 gap-2">
           {fields.map(({ label, key, value, min, max, connected }) => (
             <div key={key}>
@@ -218,14 +217,12 @@ function CropImageNodeComponent({ id, data, selected }: CropImageNodeProps) {
           ))}
         </div>
 
-        {/* Provider badge */}
         <div className="text-[9px] text-gray-600">
           <span className="px-1 py-0.5 bg-gray-800 rounded border border-gray-700">
             FFmpeg · Trigger.dev
           </span>
         </div>
 
-        {/* Cropped result */}
         {data.croppedImageUrl && (
           <div className="mt-2">
             <span className="text-[10px] text-gray-500">Result:</span>

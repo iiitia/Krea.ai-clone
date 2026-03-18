@@ -2,6 +2,8 @@ import { task } from '@trigger.dev/sdk/v3';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { writeFile, readFile, mkdir } from 'fs/promises';
+import { createWriteStream } from 'fs';
+import { pipeline } from 'stream/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { v4 as uuidv4 } from 'uuid';
@@ -58,7 +60,7 @@ export const runLLM = task({
       contents.push({ role: 'user', parts });
 
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
         {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -144,6 +146,10 @@ export const generateImage = task({
   },
 });
 
+/* ─────────────────────────────────────────────
+   Crop Image Task — FFmpeg
+───────────────────────────────────────────── */
+
 interface CropImageTaskInput {
   imageUrl:      string;
   xPercent:      number;
@@ -154,7 +160,7 @@ interface CropImageTaskInput {
 
 export const cropImage = task({
   id: 'crop-image',
-  maxDuration: 60,
+  maxDuration: 120,
 
   run: async (input: CropImageTaskInput) => {
     const workDir = join(tmpdir(), 'nextflow', uuidv4());
@@ -165,9 +171,11 @@ export const cropImage = task({
       const inputPath  = join(workDir, 'input.jpg');
       const outputPath = join(workDir, 'output.jpg');
 
+      // ✅ Stream download directly to disk
       const response = await fetch(input.imageUrl);
-      const buffer   = Buffer.from(await response.arrayBuffer());
-      await writeFile(inputPath, buffer);
+      if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
+      const fileStream = createWriteStream(inputPath);
+      await pipeline(response.body as any, fileStream);
 
       const { stdout: probeOutput } = await execAsync(
         `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "${inputPath}"`
@@ -206,7 +214,7 @@ interface ExtractFrameTaskInput {
 
 export const extractFrame = task({
   id: 'extract-frame',
-  maxDuration: 120,
+  maxDuration: 300, // ⬆️ increased from 120
 
   run: async (input: ExtractFrameTaskInput) => {
     const workDir = join(tmpdir(), 'nextflow', uuidv4());
@@ -217,9 +225,11 @@ export const extractFrame = task({
       const inputPath  = join(workDir, 'input.mp4');
       const outputPath = join(workDir, 'output.jpg');
 
+      // ✅ Stream download directly to disk
       const response = await fetch(input.videoUrl);
-      const buffer   = Buffer.from(await response.arrayBuffer());
-      await writeFile(inputPath, buffer);
+      if (!response.ok) throw new Error(`Failed to fetch video: ${response.status}`);
+      const fileStream = createWriteStream(inputPath);
+      await pipeline(response.body as any, fileStream);
 
       let seekTime: string;
       if (input.timestamp.endsWith('%')) {
@@ -261,7 +271,7 @@ interface TrimVideoTaskInput {
 
 export const trimVideo = task({
   id: 'trim-video',
-  maxDuration: 300,
+  maxDuration: 600, // ⬆️ increased from 300
 
   run: async (input: TrimVideoTaskInput) => {
     const workDir = join(tmpdir(), 'nextflow', uuidv4());
@@ -272,9 +282,11 @@ export const trimVideo = task({
       const inputPath  = join(workDir, 'input.mp4');
       const outputPath = join(workDir, 'output.mp4');
 
+      // ✅ Stream download directly to disk
       const response = await fetch(input.videoUrl);
-      const buffer   = Buffer.from(await response.arrayBuffer());
-      await writeFile(inputPath, buffer);
+      if (!response.ok) throw new Error(`Failed to fetch video: ${response.status}`);
+      const fileStream = createWriteStream(inputPath);
+      await pipeline(response.body as any, fileStream);
 
       const toSec = (ts: string) => {
         const parts = ts.split(':').map(Number);

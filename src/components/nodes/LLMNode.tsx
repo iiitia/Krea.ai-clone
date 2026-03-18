@@ -240,7 +240,7 @@ function LLMNodeComponent({ id, data, selected }: Props) {
               <option value="gpt-4-vision-preview">GPT-4 Vision</option>
             </optgroup>
             <optgroup label="Image Generation">
-              <option value="image-gen">🎨 Generate Image (Pollinations)</option>
+              <option value="image-gen">🎨 Generate Image</option>
             </optgroup>
           </select>
         </div>

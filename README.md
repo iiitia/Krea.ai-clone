@@ -12,7 +12,7 @@ The project is built using Next.js, React Flow, Prisma, Trigger.dev, and integra
 
 Application URL:
 
-krea-ai-clone-uafg.vercel.app
+https://krea-ai-clone-uafg.vercel.app/
 
 ---
 

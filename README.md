@@ -8,12 +8,6 @@ The project is built using Next.js, React Flow, Prisma, Trigger.dev, and integra
 
 ---
 
-## Live Demo
-
-Application URL:
-
-https://krea-ai-clone-uafg-6pmycygui-iiitias-projects.vercel.app/
-
 ---
 
 ## Demo Video
